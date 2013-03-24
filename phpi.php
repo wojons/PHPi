@@ -6,9 +6,9 @@
 
 		function __construct(&$input)	{$this->init($input);}
 
-		function sum($rules, $callback='defaultCallback')	{ //lets do some array summing magic
+		function sum($rules, $ucallback='defaultCallback')	{ //lets do some array summing magic
 			if(is_array($this->input) == true)	{ //summing array
-				$sum[0] = function(&$x, $data, &$log, $ext, $callback)	{ //make sure that $data becomes referance at some time
+				$callback[0] = function(&$x, &$data, &$log, $ext, $callback)	{ //make sure that $data becomes referance at some time
 					$ext_count = count($ext);
 					if($ext_count <= count($log)+1)	{
 						foreach($ext as $dex => $dat)	{ //loop trough the rules
@@ -22,19 +22,19 @@
 						}
 					}
 				};
-				return array_sum($this->_array_map_recursive($this->input, $sum, $rules, $callback)[0]); //once we run through the loop time to sum the vailes in a single array
+				return array_sum($this->_array_map_recursive($this->input, $callback, $rules, $ucallback)[0]); //once we run through the loop time to sum the vailes in a single array
 			}
 		}
 
-		function avg($rules, $callback='defaultCallback')	{
+		function avg($rules, $ucallback='defaultCallback')	{
 			if(is_array($this->input) == true)	{
-				$avg[0] = function(&$x, $data, &$log, $ext)	{
+				$callback[0] = function(&$x, $data, &$log, $ext, $callback)	{
 					$ext_count = count($ext);
 					if($ext_count <= count($log)+1)	{
 						foreach($ext as $dex => $dat)	{ //loop trough the rules
 							if(($dat == $log[$dex] || $dat == $x) || ($dat == "*" && isset($log[$dex]) == true))	{ //check for matching
 								if(($ext_count-1) == $dex)	{ //if we are on the last rule all good
-									return $data[$x];
+									return $callback($data[$x]);
 								}
 							} else {
 								return null; //return null
@@ -42,20 +42,20 @@
 						}
 					}
 				};
-				$clean = array_diff($this->_array_map_recursive($this->input, $avg, $rules, $callback)[0],array(null));
+				$clean = array_diff($this->_array_map_recursive($this->input, $callback, $rules, $ucallback)[0],array(null));
 				return array_sum($clean)/count($clean);
 			}
 		}
 
-		function count($rules, $callback='defaultCallback')	{
+		function count($rules, $ucallback='defaultCallback')	{
 			if(is_array($this->input))	{
-				$count[0] = function(&$x, $data, &$log, $ext){
+				$callback[0] = function(&$x, $data, &$log, $ext, $callback){
 					$ext_count = count($ext);
 					if($ext_count <= count($log)+1)	{
 						foreach($ext as $dex => $dat)	{ //loop trough the rules
 							if(($dat == $log[$dex] || $dat == $x) || ($dat == "*" && isset($log[$dex]) == true))	{ //check for matching
 								if(($ext_count-1) == $dex)	{ //if we are on the last rule all good
-									return 1;
+									return $callback(true);
 								}
 							} else {
 								return null; //return null
@@ -63,7 +63,7 @@
 						}
 					}
 				};
-				return array_sum($this->_array_map_recursive($this->input, $count, $rules, $callback)[0]);
+				return array_sum($this->_array_map_recursive($this->input, $callback, $rules, $ucallback)[0]);
 			}
 		}
 
@@ -83,7 +83,7 @@
 			echo $x," + ".implode('/', $log),"val:".$data[$x],"<br />";
 		}
 
-		private function _array_map_recursive(&$array, $callback, $ext=null, $ucallback)	{
+		private function _array_map_recursive(&$array, $callback, $ext=null, $ucallback='defaultCallback')	{
 			$cb_size = count($callback);
 			foreach($array as $dex=>$dat)	{
 				$history = array(); $x = $dex; $ref = array(&$array); $pointer = array(null); $dref=&$ref[0];//set values for next loop
@@ -95,7 +95,7 @@
 					}
 
 					if(is_array(end($ref)[$x]) == true)	{ //do we need to go deeper into the beast
-						$history[] = $x; $ref[] =& end($ref)[$x]; $pointer[] = $z; $dref=&$ref[count($ref)-1];//add a level to history add a new ref and add a new poiner
+						$history[] = $x; $ref[] =& $ref[count($ref)-1][$x]; $pointer[] = $z; $dref=&$ref[count($ref)-1];//add a level to history add a new ref and add a new poiner
 						$keys = array_keys(end($ref)); $x=$keys[0]; $z=0; //get a list of keys for this part of the array and set x to taht value
 						$root = false; //we are not root level;
 					} else {
@@ -132,10 +132,11 @@
 	function W($input)	{return new PHPi($input);}
 	$test = array('touch' => 'me', 'meep' => array('people' => 'ixsa', 'samsaung' => array('tv', 'laptop')), 'no' => 'girls');
 	$num_test = array(array('t' => 4),array('t' => 4));
-	print S($num_test)->sum(array('*', 't'), function($v){
-		$v =+ rand(0, 10);
+	print M($num_test)->sum(array('*', 't'), function(&$v){
+		$v =+ rand(0, 10*rand(1, 10));
 		return $v;
 	});
+	print_r($num_test);
 	/*S($num_test)->avg(array('*', 't'),function($avg)	{
 		print "people ".$avg;
 	});
