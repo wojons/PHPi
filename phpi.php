@@ -72,34 +72,25 @@
 		}
 
 		function scandir($rules, $only, $ucallback='defaultCallback')	{
-			$items = array_values(array_slice(scandir($this->input), 2)); $item_size = count($items);
-			$history = array(''); $x = 0; $list = array($items); $pointer = array();
-			$callback = function($pattern, $only=null, $path, $type=false, $ucallback)	{
-				if($only == null || $only==$type)	{
-					if(fnmatch($pattern, $path)==true)	{return $ucallback($path, $type); };
+			$callback[0] = function($ext, $path, $type=false, $ucallback)	{if($only == null || $ext['type']==$type)	{if(fnmatch($ext['rule'], $path)==true) {return $ucallback($path, $type); };}}; //call back for scanning
+			$core['check'] = function($path){return is_dir($path);};//call back for checking if its a dir or not
+			$core['list'] = function($path){return array_slice(scandir($path), 2);}; //call back to get anotehr list of directors
+			return $this->_list_map_recursive($core, $callback, array('rule'=>$rules, 'type'=>$only), $ucallback); //run the stuff
+		}
+
+		function cache($max_age, $ucallback, $where='/tmp/cache')	{
+			//$rules = array('max-age');
+			if(file_exists($where.'/'.$this->input) == true && time()-filemtime($where.'/'.$this->input) < $max_age)	{
+				return file_get_contents($where.'/'.$this->input);
+			} else {
+				if(file_exists($where) == false)	{
+					if(mkdir($where, 755, true) == false)	{
+						return "Permission Denied on folder creation";
+					} // make folder
 				}
-			}; $cb_size = count($callback);
-			while(true)	{
-				if(is_dir($this->input.implode('/', $history).'/'.$items[$x]) == true && $x<$item_size)	{
-					$result[] = $callback($rules, $only, $this->input.implode('/', $history).'/'.$items[$x], 'dir', $ucallback); // hit the callback
-					$history[] = $items[$x]; $items = array_values(array_slice(scandir($this->input.implode('/', $history).'/'),2));  $pointer[] = $x+1; $x=0; $list[] = $items; $item_size = count($items);
-				} else {
-					if($x >= $item_size || $item_size == 0)	{ //need to back trace one
-						if(count($history) == 1)	{ //i guess we are done no where else to go
-							break;
-						} else {
-							array_pop($history); $x=end($pointer); array_pop($pointer); array_pop($list); $items = end($list); $item_size = count($items);
-							if($history == null)	{
-								$hisotry = array(''); $pointer=array();
-							}
-						}
-					} else {
-						$result[] = $callback($rules, $only, $this->input.implode('/', $history).'/'.$items[$x], 'file', $ucallback); // hit the callback
-						$x++; //move the pointers
-					}
-				}
+				file_put_contents($where.'/'.$this->input, $ucallback($key));
 			}
-			return $result[0];
+
 		}
 
 		function init(&$input)	{
@@ -150,6 +141,37 @@
 				}
 			}
 			return $result;
+		}
+
+		private function _list_map_recursive($core, $callback, $ext, $ucallback)	{
+			$items = array_values($core['list']($this->input)); $item_size = count($items);
+			$history = array(''); $x = 0; $list = array($items); $pointer = array();
+			$cb_size = count($callback);
+			while(true)	{
+				if($core['check']($this->input.implode('/', $history).'/'.$items[$x]) == true && $x<$item_size)	{
+					for($cb=0; $cb<$cb_size; $cb++){
+						$result[$cb][] = $callback[$cb]($ext, $this->input.implode('/', $history).'/'.$items[$x], 'dir', $ucallback); // hit the callback
+					}
+					$history[] = $items[$x]; $items = array_values(array_slice($core['list']($this->input.implode('/', $history).'/'),2));  $pointer[] = $x+1; $x=0; $list[] = $items; $item_size = count($items);
+				} else {
+					if($x >= $item_size || $item_size == 0)	{ //need to back trace one
+						if(count($history) == 1)	{ //i guess we are done no where else to go
+							break;
+						} else {
+							array_pop($history); $x=end($pointer); array_pop($pointer); array_pop($list); $items = end($list); $item_size = count($items);
+							if($history == null)	{
+								$hisotry = array(''); $pointer=array();
+							}
+						}
+					} else {
+						for($cb=0; $cb<$cb_size; $cb++){
+							$result[$cb][] = $callback[$cb]($ext, $this->input.implode('/', $history).'/'.$items[$x], 'file', $ucallback); // hit the callback
+						}
+						$x++; //move the pointers
+					}
+				}
+			}
+			return $result[0];
 		}
 
 		private function _popen()	{
