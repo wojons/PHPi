@@ -71,6 +71,37 @@
 
 		}
 
+		function scandir($rules, $only, $ucallback='defaultCallback')	{
+			$items = array_values(array_slice(scandir($this->input), 2)); $item_size = count($items);
+			$history = array(''); $x = 0; $list = array($items); $pointer = array();
+			$callback = function($pattern, $only=null, $path, $type=false, $ucallback)	{
+				if($only == null || $only==$type)	{
+					if(fnmatch($pattern, $path)==true)	{return $ucallback($path, $type); };
+				}
+			}; $cb_size = count($callback);
+			while(true)	{
+				if(is_dir($this->input.implode('/', $history).'/'.$items[$x]) == true && $x<$item_size)	{
+					$result[] = $callback($rules, $only, $this->input.implode('/', $history).'/'.$items[$x], 'dir', $ucallback); // hit the callback
+					$history[] = $items[$x]; $items = array_values(array_slice(scandir($this->input.implode('/', $history).'/'),2));  $pointer[] = $x+1; $x=0; $list[] = $items; $item_size = count($items);
+				} else {
+					if($x >= $item_size || $item_size == 0)	{ //need to back trace one
+						if(count($history) == 1)	{ //i guess we are done no where else to go
+							break;
+						} else {
+							array_pop($history); $x=end($pointer); array_pop($pointer); array_pop($list); $items = end($list); $item_size = count($items);
+							if($history == null)	{
+								$hisotry = array(''); $pointer=array();
+							}
+						}
+					} else {
+						$result[] = $callback($rules, $only, $this->input.implode('/', $history).'/'.$items[$x], 'file', $ucallback); // hit the callback
+						$x++; //move the pointers
+					}
+				}
+			}
+			return $result[0];
+		}
+
 		function init(&$input)	{
 			$this->clear(); //make sure we have a clean slate
 			$this->input =& $input; //yes we just dubble referanced something what now &!%(#
@@ -95,7 +126,7 @@
 					}
 
 					if(is_array(end($ref)[$x]) == true)	{ //do we need to go deeper into the beast
-						$history[] = $x; $ref[] =& $ref[count($ref)-1][$x]; $pointer[] = $z; $dref=&$ref[count($ref)-1];//add a level to history add a new ref and add a new poiner
+						$history[] = $x; $ref[] =& $ref[count($ref)-1][$x]; $pointer[] = $z+1; $dref=&$ref[count($ref)-1];//add a level to history add a new ref and add a new poiner
 						$keys = array_keys(end($ref)); $x=$keys[0]; $z=0; //get a list of keys for this part of the array and set x to taht value
 						$root = false; //we are not root level;
 					} else {
@@ -103,7 +134,7 @@
 						if(isset($keys[$z]) == FALSE)	{ //no more elements lets move back 1 point
 							$x = end($history);
 							if(count($history) > 2)	{
-								$history = array_pop($history); $ref = array_pop($ref); $pointer = array_pop($history); $dref=&$ref[count($ref)-1];//delete the last elemenets no longer needed
+								array_pop($history); array_pop($ref); $pointer = array_pop($history); $dref=&$ref[count($ref)-1];//delete the last elemenets no longer needed
 								$keys = array_keys(end($ref)); $z=end($pointer); $x=$keys[$z];//get a list of keys
 							} else {
 								break;
@@ -128,21 +159,5 @@
 	}
 	function defaultCallback()	{if(func_num_args>1) {return func_get_args();}else{ return func_get_arg(0);};}
 	function S(&$input)	{return new PHPi($input);}
-	function M(&$input)	{return new PHPi($input);}
-	function W($input)	{return new PHPi($input);}
-	$test = array('touch' => 'me', 'meep' => array('people' => 'ixsa', 'samsaung' => array('tv', 'laptop')), 'no' => 'girls');
-	$num_test = array(array('t' => 4),array('t' => 4));
-	print M($num_test)->sum(array('*', 't'), function(&$v){
-		$v =+ rand(0, 10*rand(1, 10));
-		return $v;
-	});
-	print_r($num_test);
-	/*S($num_test)->avg(array('*', 't'),function($avg)	{
-		print "people ".$avg;
-	});
-	/*W('/tmp/testing')->fopen(function($write, $read){
-		fwrite($write, "fdasfads");
-	});*/
-
-	//S($test)->sum(null);
+	function I($input)	{return new PHPi($input);}
 ?>
