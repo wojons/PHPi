@@ -8,7 +8,7 @@
 
 		function sum($rules, $callback='defaultCallback')	{ //lets do some array summing magic
 			if(is_array($this->input) == true)	{ //summing array
-				$sum = function(&$x, $data, &$log, $ext)	{ //make sure that $data becomes referance at some time
+				$sum[0] = function(&$x, $data, &$log, $ext)	{ //make sure that $data becomes referance at some time
 					$ext_count = count($ext);
 					if($ext_count <= count($log)+1)	{
 						foreach($ext as $dex => $dat)	{ //loop trough the rules
@@ -22,13 +22,13 @@
 						}
 					}
 				};
-				return  $callback(array_sum($this->_array_map_recursive($this->input, $sum, $rules))); //once we run through the loop time to sum the vailes in a single array
+				return  $callback(array_sum($this->_array_map_recursive($this->input, $sum, $rules))[0]); //once we run through the loop time to sum the vailes in a single array
 			}
 		}
 
 		function avg($rules, $callback='defaultCallback')	{
 			if(is_array($this->input) == true)	{
-				$avg = function(&$x, $data, &$log, $ext)	{
+				$avg[0] = function(&$x, $data, &$log, $ext)	{
 					$ext_count = count($ext);
 					if($ext_count <= count($log)+1)	{
 						foreach($ext as $dex => $dat)	{ //loop trough the rules
@@ -42,14 +42,14 @@
 						}
 					}
 				};
-				$clean = array_diff($this->_array_map_recursive($this->input, $avg, $rules),array(null));
+				$clean = array_diff($this->_array_map_recursive($this->input, $avg, $rules)[0],array(null));
 				return $callback(array_sum($clean)/count($clean));
 			}
 		}
 
 		function count($rules, $callback='defaultCallback')	{
 			if(is_array($this->input))	{
-				$count = function(&$x, $data, &$log, $ext){
+				$count[0] = function(&$x, $data, &$log, $ext){
 					$ext_count = count($ext);
 					if($ext_count <= count($log)+1)	{
 						foreach($ext as $dex => $dat)	{ //loop trough the rules
@@ -63,7 +63,7 @@
 						}
 					}
 				};
-				return $callback(array_sum($this->_array_map_recursive($this->input, $count, $rules)));
+				return $callback(array_sum($this->_array_map_recursive($this->input, $count, $rules))[0]);
 			}
 		}
 
@@ -93,12 +93,15 @@
 		}
 
 		private function _array_map_recursive(&$array, $callback, $ext=null)	{
+			$cb_size = count($callback);
 			foreach($array as $dex=>$dat)	{
 				$history = array(); $x = $dex; $ref = array(&$array); $pointer = array(null); //set values for next loop
 				$z = 0; $root = true;
 				while(true)	{
 
-					$result[] = $callback($x, end($ref), $history, $ext); // hit the callback
+					for($cb=0; $cb<$cb_size; $cb++)	{
+						$result[$cb][] = $callback[$cb]($x, end($ref), $history, $ext); // hit the callback
+					}
 
 					if(is_array(end($ref)[$x]) == true)	{ //do we need to go deeper into the beast
 						$history[] = $x; $ref[] =& end($ref)[$x]; $pointer[] = $z; //add a level to history add a new ref and add a new poiner
@@ -139,9 +142,9 @@
 	$test = array('touch' => 'me', 'meep' => array('people' => 'ixsa', 'samsaung' => array('tv', 'laptop')), 'no' => 'girls');
 	$num_test = array(array('t' => 4),array('t' => 4));
 	print_r(S($num_test)->sum(array('*', 't')));
-	print_r(S($num_test)->avg(array('*', 't'),function($avg)	{
+	S($num_test)->avg(array('*', 't'),function($avg)	{
 		print "people ".$avg;
-	}));
+	});
 	/*W('/tmp/testing')->fopen(function($write, $read){
 		fwrite($write, "fdasfads");
 	});*/
