@@ -22,7 +22,28 @@
 						}
 					}
 				};
-				return  $callback(array_sum($this->array_map_recursive($this->input, $sum, $rules))); //once we run through the loop time to sum the vailes in a single array
+				return  $callback(array_sum($this->_array_map_recursive($this->input, $sum, $rules))); //once we run through the loop time to sum the vailes in a single array
+			}
+		}
+
+		function avg($rules, $callback='defaultCallback')	{
+			if(is_array($this->input) == true)	{
+				$avg = function(&$x, $data, &$log, $ext)	{
+					$ext_count = count($ext);
+					if($ext_count <= count($log)+1)	{
+						foreach($ext as $dex => $dat)	{ //loop trough the rules
+							if(($dat == $log[$dex] || $dat == $x) || ($dat == "*" && isset($log[$dex]) == true))	{ //check for matching
+								if(($ext_count-1) == $dex)	{ //if we are on the last rule all good
+									return $data[$x];
+								}
+							} else {
+								return null; //return null
+							}
+						}
+					}
+				};
+				$clean = array_diff($this->_array_map_recursive($this->input, $avg, $rules),array(null));
+				return $callback(array_sum($clean)/count($clean));
 			}
 		}
 
@@ -42,7 +63,20 @@
 						}
 					}
 				};
-				return $callback(array_sum($this->array_map_recursive($this->input, $count, $rules)));
+				return $callback(array_sum($this->_array_map_recursive($this->input, $count, $rules)));
+			}
+		}
+
+		function fopen($callback, $close=true, $file=null)	{
+			$file = ($file==null) ? $this->input : $file;
+			if(file_exists($file) == true)	{
+				$proc = proc_open("php", array(array('file', $file, 'r'), array('file', $file, 'w'), array('file', '/tmp/error', 'a')), $pipes, "/tmp", array('some_option' => 'aeiou'));
+				if (is_resource($proc)) {
+					var_dump($pipes);
+					$callback($pipes[0],$pipes[1]);
+				}
+				if($clode == true)	{proc_close($proc);}
+				else {return "hi";}
 			}
 		}
 
@@ -58,7 +92,7 @@
 			echo $x," + ".implode('/', $log),"val:".$data[$x],"<br />";
 		}
 
-		function array_map_recursive(&$array, $callback, $ext=null)	{
+		private function _array_map_recursive(&$array, $callback, $ext=null)	{
 			foreach($array as $dex=>$dat)	{
 				$history = array(); $x = $dex; $ref = array(&$array); $pointer = array(null); //set values for next loop
 				$z = 0; $root = true;
@@ -93,13 +127,24 @@
 			return $result;
 		}
 
+		private function _popen()	{
+
+		}
+
 	}
 	function defaultCallback()	{if(func_num_args>1) {return func_get_args();}else{ return func_get_arg(0);};}
 	function S(&$input)	{return new PHPi($input);}
-	
+	function M(&$input)	{return new PHPi($input);}
+	function W($input)	{return new PHPi($input);}
 	$test = array('touch' => 'me', 'meep' => array('people' => 'ixsa', 'samsaung' => array('tv', 'laptop')), 'no' => 'girls');
 	$num_test = array(array('t' => 4),array('t' => 4));
 	print_r(S($num_test)->sum(array('*', 't')));
+	print_r(S($num_test)->avg(array('*', 't'),function($avg)	{
+		print "people ".$avg;
+	}));
+	/*W('/tmp/testing')->fopen(function($write, $read){
+		fwrite($write, "fdasfads");
+	});*/
 
 	//S($test)->sum(null);
 ?>
