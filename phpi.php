@@ -67,6 +67,13 @@
 			}
 		}
 
+		function foreach($callback)	{
+			while(next($this->input))	{
+				$var = each($this->input); 
+				$result[$var[0]] = $callback($var[0], $var[1]);
+			}
+		}
+
 		function sort($rules, $sort, $callback)	{
 
 		}
@@ -79,7 +86,6 @@
 		}
 
 		function cache($max_age, $ucallback, $where='/tmp/cache')	{
-			//$rules = array('max-age');
 			if(file_exists($where.'/'.$this->input) == true && time()-filemtime($where.'/'.$this->input) < $max_age)	{
 				return file_get_contents($where.'/'.$this->input);
 			} else {
@@ -179,7 +185,59 @@
 		}
 
 	}
+
+	class PHPi_server	{
+		private $input = null;
+		private $curr_sock = null;
+		function __contruct($input)	{$this->input = $input;}
+		function init()	{}
+
+		function start($address, $port, $ucallback)	{
+			/* Allow the script to hang around waiting for connections. */
+			set_time_limit(0);
+
+			/* Turn on implicit output flushing so we see what we're getting
+			 * as it comes in. */
+			ob_implicit_flush();
+
+			if (($sock = socket_create(AF_INET, SOCK_STREAM, SOL_TCP)) === false) {echo "socket_create() failed: reason: " . socket_strerror(socket_last_error()) . "\n";}
+			if (socket_bind($sock, $address, $port) === false) {echo "socket_bind() failed: reason: " . socket_strerror(socket_last_error($sock)) . "\n";}
+			if (socket_listen($sock, 5) === false) { echo "socket_listen() failed: reason: " . socket_strerror(socket_last_error($sock)) . "\n";}
+			socket_set_nonblock($sock);
+			do {
+				$socket = array('r' => null, 'w' => null, 'e' => null)
+			    if (($this->curr_sock = socket_select($socket['r'], $socket['w'], $socket['e'], 0)) === false) {echo "socket_accept() failed: reason: " . socket_strerror(socket_last_error($sock)) . "\n";break;}
+			    /* Send instructions. */
+			    $msg = "\nWelcome to the PHP Test Server. \n" .
+			        "To quit, type 'quit'. To shut down the server type 'shutdown'.\n";
+			    socket_write($socket['r'], $msg, strlen($msg));
+
+			   // $ucallback($this);
+
+
+			} while (true);
+			socket_close($sock);
+		}
+
+		function write($text)	{
+			socket_write($this->curr_sock, $text);
+		}
+
+		function readUntil($pattern)	{
+			$recv = "";
+			do { 
+				print "ff";
+			     $recv .= socket_read($this->curr_sock, '1400'); 
+			} while(fnmatch($pattern, $recv) != true);
+			return $recv;
+		}
+
+		function info()	{ //get information about this connection
+
+		}
+	}
 	function defaultCallback()	{if(func_num_args>1) {return func_get_args();}else{ return func_get_arg(0);};}
 	function S(&$input)	{return new PHPi($input);}
 	function I($input)	{return new PHPi($input);}
+	function W($input)	{return new PHPi_server($input);}
 ?>

@@ -5,8 +5,14 @@ include 'phpi.php';
 	print $path."<br />";
 	return $path;
 });*/
-print I('abcdef')->cache(60, function($key){
+/*print I('abcdef')->cache(60, function($key){
 	$var = shell_exec('cat /proc/loadavg');
 	print $var;
 	return $var;
+});*/
+
+W('')->start('10.120.0.8', 10000, function($conn){
+	$conn->write("hello world");
+	$got = $conn->readUntil('*gg');
+	$conn->write($got);
 });
