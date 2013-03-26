@@ -67,12 +67,30 @@
 			}
 		}
 
-		function foreach($callback)	{
+		//
+		// start loop codes
+		function each($callback)	{ //same as a normal php foreach loop
 			while(next($this->input))	{
 				$var = each($this->input); 
 				$result[$var[0]] = $callback($var[0], $var[1]);
 			}
 		}
+
+		function upto($max, $callback)	{ //same as the ruby upto
+			for($x=$this->input; $x<$max, $x++)	{
+				$callback($x);
+			}
+		}
+
+
+
+		//
+		// end loop code
+		//
+
+		/*function for($start, $stop, $diff, $callback)	{
+			for($x=$start, $x)
+		}*/
 
 		function sort($rules, $sort, $callback)	{
 
