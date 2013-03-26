@@ -229,10 +229,7 @@
 			$this->serv_sock = stream_socket_server("tcp://".$address.":".$port."", $errno, $errstr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN);
 			//var_dump($this->serv_sock); exit();
 			if(!$this->serv_sock)	{
-				print "gg";
 				 die("$errstr ($errno)");
-			} else {
-				print "$errstr ($errno)";
 			}
 			$this->_forkNodes();
 			return $this;
@@ -249,7 +246,7 @@
 		}
 
 		private function _accapet()	{ //accapet user connections
-			while(count($this->backlog) < $this->config['backlog']['max'] && ($conn = stream_socket_accept($this->serv_sock, 1)) !== false)	{ //keep accapeting connections until there are no more to accapet or the backlog is full
+			while(count($this->backlog) < $this->config['backlog']['max'] && ($conn = @stream_socket_accept($this->serv_sock, 0)) !== false)	{ //keep accapeting connections until there are no more to accapet or the backlog is full
 				$conn_data = $this->_read_conn($conn, ++$this->conn_count); //read the connection data
 				if(($node = $this->_available_nodes(false)) == true && count($this->backlog) > 0)	{
 					$this->_conn_handoff($node, $this->conn_count);
@@ -274,6 +271,7 @@
 		}
 
 		private function _read_conn($conn)	{
+			$conn_data = "";
 			if(stream_socket_recvfrom($conn, 4096, STREAM_PEEK) != "")	{//check if there is anything to read
 				do {
 					$conn_data .= stream_socket_recvfrom($conn, 4096);
@@ -348,16 +346,19 @@
 				}
 			}
 		}
+
+		private function _connectTo_node($node)	{
+			$this->node_socks[$node] = stream_socket_client('unix://'.$this->socket_path.$node.'.sock', $errno, $errstr, 0, STREAM_CLIENT_ASYNC_CONNECT);
+		}
 		
 		private function _node_active($node, $conn)	{
 			$this->nodes[$pid] = array('conn' => $conn, 'ts' => microtime());
 		}
 
 		private function _registerNode($pid)	{ //register the node in our list
-			do {
-				$this->node_socks[$pid] = stream_socket_client('unix://'.$this->socket_path.$pid.'.sock', $errno, $errstr, 0, STREAM_CLIENT_ASYNC_CONNECT);
-			} while ($this->node_socks[$pid] === false);
-			var_dump($this->node_socks[$pid]);
+			/*do {
+				$this->node_socks[$pid] = @stream_socket_client('unix://'.$this->socket_path.$pid.'.sock', $errno, $errstr, 0, STREAM_CLIENT_ASYNC_CONNECT);
+			} while ($this->node_socks[$pid] === false); //takes a little bit of time for the fork to boot up you know what i mean*/
 			$this->nodes[$pid] = 0; //0 means its not doing anything; 1 means that it is currently handling some request
 		}
 
@@ -413,12 +414,9 @@
 		function __construct($path)	{
 			$this->pid = getmypid();
 			$this->_get_socket_file($path);
-			$this->$socket = stream_socket_server('unix://'.$this->sock_file, $errno, $errstr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN);
-			if(!$this->$socket)	{
-				print "gg";
+			$this->socket = stream_socket_server('unix://'.$this->sock_file, $errno, $errstr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN);
+			if(!$this->socket)	{
 				 die("$errstr ($errno)");
-			} else {
-				print "$errstr ($errno)";
 			}
 			$this->run();
 		}
@@ -448,15 +446,15 @@
 
 		}
 
-		private function _process_gc()	{
+		private function _gc_event()	{
 			fclose($this->fp);
 		}
 
 		function run()	{
 			while(true && $this->_signal() == false)	{ //wait for the connection withthe data to be sent /* soon it will be better to leave the connection open forever and just to keep reading 
-				if($this->fp = stream_socket_accept($this->socket, 0) == false)	{ //if there is a socket connection
+				if($this->fp = @stream_socket_accept($this->socket, 0) !== false)	{ //if there is a socket connection
 					$this->_process_request(); //get the request procssed
-					$this->_gc_request(); //clean up the trash
+					$this->_gc_event(); //clean up the trash
 				}
 			}
 		}
