@@ -11,8 +11,11 @@ include 'phpi.php';
 	return $var;
 });*/
 
-W('')->start('10.120.0.8', 10000, function($conn){
+/*W('')->start('10.120.0.8', 10000, function($conn){
 	$conn->write("hello world");
 	$got = $conn->readUntil('*gg');
 	$conn->write($got);
-});
+});*/
+
+$server = new PHPi_server();
+$server->start("0.0.0.0", 8900, function()	{})->run();
