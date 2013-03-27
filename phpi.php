@@ -213,11 +213,13 @@
 		private $nodes = array(); // list of all the nodes we have
 		private $node_socks = array(); // array of all the node sockets
 		private $serv_sock = null; // the socket the server uses to bind to the out side world
+		private $pending_conn = array(); //conections that are still being read
 
 		private $backlog = array(); //the backlog of accapted connections
 		private $process_list = array(); // this is for active connections if node that is working on it dies we will be able to push the connection onto another machine
 		private $config = array('backlog' => array('max' => 10)); //the config
 		private $socket_path = "/tmp/sock/"; //path to the socket files
+		private $in_read_list = array(); //connections that are not being done read yet
 
 		/*function __contruct($input)	{$this->input = $input;}
 		function init()	{}
@@ -240,39 +242,39 @@
 		function run()	{
 			while(true)	{
 				$this->_accapet(); //try to accapet any connections and keep accpeting them until we cant and have to get some work done
+				$this->_incomming(); //read connections in
 				$this->_return(); //return any compleated jobs to the clients waiting for them
 				$this->_try_backlog(); //try some backlog servers
+				print "\n";
 			}
 		}
 
 		private function _accapet()	{ //accapet user connections
 			print "\nstart accepet loop: ".time();
 			while(count($this->backlog) < $this->config['backlog']['max'] && ($conn = @stream_socket_accept($this->serv_sock, .001)) !== false)	{ //keep accapeting connections until there are no more to accapet or the backlog is full
-				print "\n start accpet: ".time();
+				stream_set_blocking($conn, 0); //set this stream to non blocking
+				print "\nstart accpet: ".time();
 				$conn_data = $this->_read_conn($conn, ++$this->conn_count); //read the connection data
-				print "\n finish reading conn: ".time();
-				if(($node = $this->_available_nodes(false)) == true && count($this->backlog) == 0)	{
-					print "\nstart handoff: ".time();
-					$this->_conn_handoff($node, $this->conn_count, $conn_data);
-					print "\nend handoff: ".time();
-				} else { //no server can take the connnections right now so we are going to backlog it
-					print "\nstart backlog entery: ".time();
-					$this->_add_backlog($this->conn_count, $conn_data); //take the current connection number and use that as the id
-					print "\nend backlog write: ".time();
+				if($conn_data != false)	{
+					print "\n finish reading conn: ".time();
+					$this->_handle_conn($this->conn_count, $conn_data);
+					print "\nend accpet".time();
+				} else {
+					$this->pending_conn[$this->conn_count] = $conn;
 				}
-				print "\nend accpet".time();
 			}
 			print "\nend accept loop: ".time();
 		}
 
-		private function _try_backlog()	{ //try to get something done
-			print "\nbacklog: ".count($this->backlog);
-			if(count($this->backlog) > 0)	{ //if there is something in the backlog lets try it
-				while(($backlog = $this->_get_backlog()) === true && ($node = $this->_available_nodes(false) == true))	{ //get pulling backlogs till we cant
-						$this->_conn_handoff($node, $backlog['conn_id'], $backlog['data']); //hand off the connection to the node to handle
+		private function _incomming()	{
+			foreach($this->in_read_list as $dex => $dat)	{
+				$read_return = $this->_read_conn($this->pending_conn[$dex], $dex, 10);
+				if($read_return != false)	{ //lets process this data
+					$this->_handle_conn($dex, $dat.$read_return);
+					unset($this->in_read_list[$dex]); //remove this from the pending reading list
 				}
 			}
-		}
+		}		
 
 		private function _return()	{
 			print "\nstart return loop".time();
@@ -299,6 +301,27 @@
 			print "\nend return loop".time();
 		}
 
+		private function _handle_conn($id, $data)	{
+			if(($node = $this->_available_nodes(false)) == true && count($this->backlog) == 0)	{
+				print "\nstart handoff: ".time();
+				$this->_conn_handoff($node, $id, $data);
+				print "\nend handoff: ".time();
+			} else { //no server can take the connnections right now so we are going to backlog it
+				print "\nstart backlog entery: ".time();
+				$this->_add_backlog($id, $data); //take the current connection number and use that as the id
+				print "\nend backlog write: ".time();
+			}
+		}
+
+		private function _try_backlog()	{ //try to get something done
+			print "\nbacklog: ".count($this->backlog);
+			if(count($this->backlog) > 0)	{ //if there is something in the backlog lets try it
+				while(($backlog = $this->_get_backlog()) === true && ($node = $this->_available_nodes(false) == true))	{ //get pulling backlogs till we cant
+						$this->_conn_handoff($node, $backlog['conn_id'], $backlog['data']); //hand off the connection to the node to handle
+				}
+			}
+		}
+
 		private function _conn_handoff($node, $conn_id, $conn_data)	{ // hand off the connection to a child
 			$this->_sendTo_node($node, $conn_id, $conn_data);// write to the node socket
 			$this->_set_active($node, $conn_id, $conn_data);
@@ -313,27 +336,29 @@
 			unset($this->process_list[$node]);
 		}
 
-		private function _read_conn($conn)	{
+		private function _read_conn($conn, $conn_id=null, $loops=1)	{
 			print "\nstart reading conn: ".time();
-			$x=0;
-			$conn_data = "";
+			$x=0; $conn_data = "";
 			if(stream_socket_recvfrom($conn, 1024, STREAM_PEEK) != "")	{//check if there is anything to read
 				do {
 					print "\nreading conn round {$x}: ".time(); $x++;
 					$new = stream_socket_recvfrom($conn, 1024); $conn_data .= $new; //grab the data waiting
 					//print "\n"; var_dump($new);
 					if(substr($conn_data, -4) == "\r\n\r\n")	{ //see if the end of a header request
-						$this->_set_conn($conn);
+						$this->_set_conn($conn, $conn_id);
 						return $conn_data;
 					} 
 					elseif($new == "")	{ break; } //handle when we are no longer getting any data
-				} while (true); //keep trying until we fail at something
+				} while ($x < $loop); //keep trying until we fail at something
 			}
 			//handle bad connections like when the user closes there broswer on u like a little bitch
+
+			$this->in_read_list[$conn_id] = (isset($this->in_read_list[$conn_id]) == true) ? $this->in_read_list[$conn_id].$conn_data : $conn_data;
+			return false; //let it know its not done yet
 		}
 
-		private function _set_conn($conn)	{ //bound the connection to something
-			$this->conns[$this->conn_count] = $conn;
+		private function _set_conn($conn, $conn_id)	{ //bound the connection to something
+			$this->conns[$conn_id] = $conn;
 		}
 
 		private function _rm_conn($conn_id)	{ // remove the connection from lists and close it
