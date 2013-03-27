@@ -267,6 +267,7 @@
 		}
 
 		private function _incomming()	{
+			print "\nstart incomming loop: ".time();
 			foreach($this->in_read_list as $dex => $dat)	{
 				$read_return = $this->_read_conn($this->pending_conn[$dex], $dex, 10);
 				if($read_return != false)	{ //lets process this data
@@ -274,6 +275,7 @@
 					unset($this->in_read_list[$dex]); //remove this from the pending reading list
 				}
 			}
+			print "\nend incomming loop: ".time();
 		}		
 
 		private function _return()	{
