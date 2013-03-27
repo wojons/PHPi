@@ -246,18 +246,61 @@
 		}
 
 		private function _accapet()	{ //accapet user connections
-			while(count($this->backlog) < $this->config['backlog']['max'] && ($conn = @stream_socket_accept($this->serv_sock, 0)) !== false)	{ //keep accapeting connections until there are no more to accapet or the backlog is full
+			print "\nstart accepet loop: ".time();
+			while(count($this->backlog) < $this->config['backlog']['max'] && ($conn = @stream_socket_accept($this->serv_sock, .001)) !== false)	{ //keep accapeting connections until there are no more to accapet or the backlog is full
+				print "\n start accpet: ".time();
 				$conn_data = $this->_read_conn($conn, ++$this->conn_count); //read the connection data
-				if(($node = $this->_available_nodes(false)) == true && count($this->backlog) > 0)	{
-					$this->_conn_handoff($node, $this->conn_count);
+				print "\n finish reading conn: ".time();
+				if(($node = $this->_available_nodes(false)) == true && count($this->backlog) == 0)	{
+					print "\nstart handoff: ".time();
+					$this->_conn_handoff($node, $this->conn_count, $conn_data);
+					print "\nend handoff: ".time();
 				} else { //no server can take the connnections right now so we are going to backlog it
+					print "\nstart backlog entery: ".time();
 					$this->_add_backlog($this->conn_count, $conn_data); //take the current connection number and use that as the id
+					print "\nend backlog write: ".time();
+				}
+				print "\nend accpet".time();
+			}
+			print "\nend accept loop: ".time();
+		}
+
+		private function _try_backlog()	{ //try to get something done
+			print "\nbacklog: ".count($this->backlog);
+			if(count($this->backlog) > 0)	{ //if there is something in the backlog lets try it
+				while(($backlog = $this->_get_backlog()) === true && ($node = $this->_available_nodes(false) == true))	{ //get pulling backlogs till we cant
+						$this->_conn_handoff($node, $backlog['conn_id'], $backlog['data']); //hand off the connection to the node to handle
 				}
 			}
 		}
 
+		private function _return()	{
+			print "\nstart return loop".time();
+			foreach($this->process_list as $dex => $dat)	{ //loop down the list of the connections we know being worked on
+				$payload = ""; //reset it like a boss
+				if(stream_socket_recvfrom($this->node_socks[$dex], 4096, STREAM_PEEK) != "")	{//check if there is anything to read
+					do {
+						$peak = stream_socket_recvfrom($this->node_socks[$dex], 4096);
+						//print var_dump($peak);
+						if($peak != "")	{ $payload .= $peak; } //grab the data waiting
+						else { break; } //if thre is no data then break out of the looop
+					} while (stream_socket_recvfrom($this->node_socks[$dex], 4096, STREAM_PEEK) != ""); //keep trying until we fail at something
+					if($payload != "")	{ // send data to client
+						stream_socket_sendto($this->conns[$this->nodes[$dex]['conn']], $payload);//lets return this data back to the person that neededs it
+						var_dump($payload);
+						if(@fwrite($this->node_socks[$dex], "\0") == false)	{ //null bit at end close connection 
+							$this->_rm_active($dex);
+							$this->_rm_conn($this->nodes[$dex]['conn']); //close connection to client
+							$this->_node_inactive($dex); //close the node
+						}
+					}
+				}
+			}
+			print "\nend return loop".time();
+		}
+
 		private function _conn_handoff($node, $conn_id, $conn_data)	{ // hand off the connection to a child
-			$this->sendTo_node($node, $conn_id);// write to the node socket
+			$this->_sendTo_node($node, $conn_id, $conn_data);// write to the node socket
 			$this->_set_active($node, $conn_id, $conn_data);
 		}
 
@@ -271,16 +314,22 @@
 		}
 
 		private function _read_conn($conn)	{
+			print "\nstart reading conn: ".time();
+			$x=0;
 			$conn_data = "";
-			if(stream_socket_recvfrom($conn, 4096, STREAM_PEEK) != "")	{//check if there is anything to read
+			if(stream_socket_recvfrom($conn, 1024, STREAM_PEEK) != "")	{//check if there is anything to read
 				do {
-					$conn_data .= stream_socket_recvfrom($conn, 4096);
-					if($conn == "")	{ break; } //grab the data waiting
+					print "\nreading conn round {$x}: ".time(); $x++;
+					$new = stream_socket_recvfrom($conn, 1024); $conn_data .= $new; //grab the data waiting
+					//print "\n"; var_dump($new);
+					if(substr($conn_data, -4) == "\r\n\r\n")	{ //see if the end of a header request
+						$this->_set_conn($conn);
+						return $conn_data;
+					} 
+					elseif($new == "")	{ break; } //handle when we are no longer getting any data
 				} while (true); //keep trying until we fail at something
 			}
-
-			$this->_set_conn($conn);
-			return $conn_data;
+			//handle bad connections like when the user closes there broswer on u like a little bitch
 		}
 
 		private function _set_conn($conn)	{ //bound the connection to something
@@ -292,28 +341,7 @@
 			unset($this->conns[$conn_id]);
 		}
 
-		private function _try_backlog()	{ //try to get something done
-			if(count($this->backlog) > 0)	{ //if there is something in the backlog lets try it
-				while(($backlog = _get_backedlog()) === true && ($node = $this->_available_nodes(false) == true))	{ //get pulling backlogs till we cant
-						$this->_conn_handoff($node, $backlog['conn_id'], $backlog['data']); //hand off the connection to the node to handle
-				}
-			}
-		}
-
-		private function _return()	{
-			foreach($this->process_list as $dex => $dat)	{ //loop down the list of the connections we know being worked on
-				$return = ""; //reset it like a boss
-				if(stream_socket_recvfrom($this->node_socks[$dex], 4096, STREAM_PEEK) != "")	{//check if there is anything to read
-					do {
-						$peak = stream_socket_recvfrom($this->node_socks[$dex], 4096);
-						if($peak != "")	{ $return .= $peak; } //grab the data waiting
-						else { break; } //if thre is no data then break out of the looop
-					} while (true); //keep trying until we fail at something
-
-					stream_socket_sendto($this->conns[$this->nodes[$dex]['conn']], $return);//lets return this data back to the person that neededs it
-				}
-			}
-		}
+		
 
 		// end connections
 		//
@@ -324,19 +352,26 @@
 			return ($multi == false) ? array_search(0, $this->nodes) : array_keys($this->nodes, 0);
 		}
 
-		private function _sendTo_node($node, $connData)	{
-			stream_socket_sendto($socket, $connData);
-			$this->_node_active($node, $connNum); // set the node to active
+		private function _sendTo_node($node, $connNum, $connData)	{
+			if($this->_connectTo_node($node))	{ //connect to a node
+				stream_socket_sendto($this->node_socks[$node], $connData);
+				$this->_node_active($node, $connNum); // set the node to active
+			}
 		}
 
 		private function _forkNodes()	{ // fork the nodes over
-			for($x=0; $x<1; $x++)	{
+			for($x=0; $x<50; $x++)	{
 				$pid = pcntl_fork();
 				if ($pid == -1) { die('could not fork'); } 
 				elseif ($pid) {
 					$this->_registerNode($pid);
 				} else { new PHPi_node($this->socket_path); exit(); }
 			}
+		}
+
+		private function _node_inactive($node)	{ //close the soceket to the node on this end and set it to not active
+			unset($this->node_socks[$node]);
+			$this->_registerNode($node);
 		}
 
 		private function _stopNodes()	{
@@ -349,10 +384,11 @@
 
 		private function _connectTo_node($node)	{
 			$this->node_socks[$node] = stream_socket_client('unix://'.$this->socket_path.$node.'.sock', $errno, $errstr, 0, STREAM_CLIENT_ASYNC_CONNECT);
+			return true;
 		}
 		
 		private function _node_active($node, $conn)	{
-			$this->nodes[$pid] = array('conn' => $conn, 'ts' => microtime());
+			$this->nodes[$node] = array('conn' => $conn, 'ts' => microtime());
 		}
 
 		private function _registerNode($pid)	{ //register the node in our list
@@ -379,7 +415,7 @@
 			unset($this->backlog);
 		}
 
-		private function _get_backedlog()	{ //get the next item on the backlog list
+		private function _get_backlog()	{ //get the next item on the backlog list
 			return array_shift($this->backlog); //removes first element of the array returns that and lowers the size of the array by 1
 		}
 		// end backlog stuff
@@ -430,30 +466,56 @@
 		} 
 
 		private function _route_request($request_path)	{ //use the array of routes and route the request to the correct block
-			foreach($this->routes as $dex=>$dat)	{
+			$date = @getdate(time());
+			$this->write("<h1>Hello World</h1><h2>It is currently: {$date['weekday']},  {$date['month']} {$date['mday']}, {$date['year']} @ {$date['hours']}:{$date['minutes']}</h2>");
+			print "\nhello world: ".time(); 
+			/*foreach($this->routes as $dex=>$dat)	{
 				if(fnmatch($dex, $request_path) == true)	{
-					$this->route[$dex](); //pass the request of to the user call back
+					return $this->route[$dex](); //pass the request of to the user call back
 					break;
 				}
-			}
+			}*/
+			return true;
 		}
 
 		private function _signal()	{ //checks to see if there is a signal to do exit or something like that
 
 		}
 
-		private function _process_request()	{/*processes the request load it with the data get it running*/
+		private function _receive_request()	{ //get the http request
+			$raw = "";
+			if(stream_socket_recvfrom($this->fp, 4096, STREAM_PEEK) != "")	{//check if there is anything to read
+				do {
+					$new = stream_socket_recvfrom($this->fp, 4096); $raw .= $new; //print json_encode(array($raw)); //grab the data waiting
+					if(substr($raw, -4) == "\r\n\r\n")	{ //see if the end of a header request
+						return $this->_process_request($raw);
+					} 
+					elseif($new == "")	{ break; } //handle when we are no longer getting any data
+				} while (true); //keep trying until we fail at something
+			}
+			//handle bad connections like when the user closes there broswer on u like a little bitch
+		}
 
+		function write($str)	{
+			stream_socket_sendto($this->fp, $str);
+		}
+
+		private function _process_request($payload)	{/*processes the request load it with the data get it running*/
+			$headers = http_parse_headers($payload);
+			return $this->_route_request($headers['Request Url']);
 		}
 
 		private function _gc_event()	{
+			//$this->write("\0");
+			stream_socket_shutdown($this->fp, STREAM_SHUT_RDWR);
 			fclose($this->fp);
 		}
 
 		function run()	{
 			while(true && $this->_signal() == false)	{ //wait for the connection withthe data to be sent /* soon it will be better to leave the connection open forever and just to keep reading 
-				if($this->fp = @stream_socket_accept($this->socket, 0) !== false)	{ //if there is a socket connection
-					$this->_process_request(); //get the request procssed
+				if(($this->fp = @stream_socket_accept($this->socket, .01)) !== false)	{ //if there is a socket connection
+					print "yo\n";
+					$this->_receive_request(); //get the request procssed
 					$this->_gc_event(); //clean up the trash
 				}
 			}
