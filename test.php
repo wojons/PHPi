@@ -1,5 +1,5 @@
+#!/usr/bin/php
 <?php
-
 include 'phpi.php';
 /*I('/home/www/PHPi')->scandir('*', 'file', function($path, $type)	{
 	print $path."<br />";
@@ -18,4 +18,9 @@ include 'phpi.php';
 });*/
 
 $server = new PHPi_server();
-$server->start("0.0.0.0", 8900, function()	{})->run();
+$server->config_server("config.ini");
+$server->start("0.0.0.0", 8900, function()	{});
+$server->route('/meep', function($I){
+	$I->write("meep");
+});
+$server->run();
