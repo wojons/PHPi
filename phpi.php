@@ -209,12 +209,14 @@ class APIi extends PHPi{
 	
 	function __construct(){
 		$this->route(); //start the routing
+		$this->session();
 	}
 	function route()	{
 		$this->route = new ROUTEi();
 	}
-	function session($id){
-		$this->session = new SESSIONi($id);
+	function session(){
+		$this->session = new SESSIONi($_COOKIE['SESSIONi']);
+		SESSIONi::read();
 	}
 	function database(){}
 	//function cache(){}
@@ -253,6 +255,7 @@ class ROUTEi extends PHPi{
 		}
 	}
 	
+	
 	//add routing rules
 	function add($types, $rule, $cb){
 		foreach($types as $dat)	{
@@ -268,6 +271,10 @@ class ROUTEi extends PHPi{
 	// forground helpers
 	function get_route()	{
 		return $this->route;
+	}
+	
+	function set_status($code)	{
+		$this->status_code = $code;
 	}
 	
 	// background helpers

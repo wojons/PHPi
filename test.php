@@ -27,14 +27,13 @@ $server->route('/meep', function($I){
 	$I->write("meep");
 });
 $server->run();*/
+
 $api = new APIi();
 $api->route->get('*', function($api) {
-	SESSIONi::$data['time'] = time();
-	SESSIONi::$data = array();
-	return array($api->route->get_route());
+	SESSIONi::$data['time'] = microtime(true);
+	return array($api->route->get_route(), SESSIONi::$data);
 });
-$api->session($_COOKIE['SESSIONi']);
-SESSIONi::read();
+
 $re = $api->route->route($_SERVER['REQUEST_URI'], 'GET', $api);
 if(headers_sent() == false)	{
 	$api->session->__destruct(); //send public data
