@@ -1,4 +1,3 @@
-
 <?php
 include 'phpi.php';
 /*I('/home/www/PHPi')->scandir('*', 'file', function($path, $type)	{
@@ -28,14 +27,18 @@ $server->route('/meep', function($I){
 	$I->write("meep");
 });
 $server->run();*/
-
 $api = new APIi();
 $api->route->get('*', function($api) {
-	print_r(SESSIONi::$data);
-	SESSIONi::$data[] = "true";
+	SESSIONi::$data['time'] = time();
 	SESSIONi::$data = array();
-	return $api->route->get_route();
+	return array($api->route->get_route());
 });
 $api->session($_COOKIE['SESSIONi']);
 SESSIONi::read();
-print_r($api->route->route('hello world u ...', 'GET', $api));
+$re = $api->route->route($_SERVER['REQUEST_URI'], 'GET', $api);
+if(headers_sent() == false)	{
+	$api->session->__destruct(); //send public data
+	header('Status: '.$re['status']);
+	header('Content-type: application/json');
+}
+echo json_encode($re['body']);
