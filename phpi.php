@@ -204,6 +204,76 @@ class PHPi{
 
 }
 
+class ASYNCi extends PHPi{
+	private static $pipes = array();
+	private static $event_path = "";
+	
+	function __construct()	{
+		if(file_exists("/dev/shm/ASYNCi/") == False)	{ mkdir("/dev/shm/ASYNCi/", 775, true); }
+		self::$event_path = "/dev/shm/ASYNCi/".getmypid().".";
+	}
+	
+	static function run($cmd, $cb) {
+		//$event_file = $this->events_path.count($pipes).'.event';
+		while(true)	{
+			$event_id = base_convert(mt_rand(), 10, 36);
+			if(isset(self::$pipes[$event_id]) == false)	{ //lets use this id
+				if (file_exists(self::$event_path.$event_id.'.event') == true) { unlink(self::$event_path.$event_id.'.event'); } 
+				//print $cmd.' && touch '.$this->event_path.$event_id.'.event\n'; //exit();
+				self::$pipes[(string)$event_id] = array('handle' => popen($cmd.' && touch '.self::$event_path.$event_id.'.event', 'r'), 'callback' => $cb);
+				break;
+			}
+		}
+		return $event_id;
+	}
+	
+	static function attempt($event_id)	{
+		//print $this->event_path.$event_id.'.event\n';
+		if(file_exists(self::$event_path.$event_id.'.event') == true)	{
+			return self::callback($event_id);
+		}
+		return False;
+	}
+	
+	static function callback($event_id)	{
+		unlink(self::$event_path.$event_id.'.event');
+		return call_user_func_array(self::$pipes[$event_id]['callback'], array(stream_get_contents(self::$pipes[$event_id]['handle'])));
+	}
+	
+	static function loop($iter=1)	{
+		for($x=0; $x<$inter; $x++)	{
+			foreach(glob(self::$event_path.'*') as $dex => $dat)	{
+				self::$pipes[$event_id]['data'] = self::callback($dat);
+			}
+		}
+	}
+	
+	static function waitFor($events, $count=0)	{ //wait for some events to finish before continuing
+		$count = ($count > count($events)) ? count($events) : $count; //make sure we are not waiting for me then we have
+		while (true)	{
+			$done = 0;
+			foreach($events as $event_id)	{
+				if(isset(self::$pipes[$event_id]['data']) || self::$pipes[$event_id] == true || file_exists(file_exists(self::$event_path.$event_id.'.event')))	{
+					if(file_exists(self::$event_path.$event_id.'.event') == True)	{
+						self::$pipes[$event_id]['data'] = self::callback($event_id);
+					}
+					$done++;
+				}
+			}
+			if($done >= $count) { break; } //done waited for what we needed
+			self::loop(1); //run the loop again
+		}
+		
+	}
+	
+	function wait()	{}
+	
+	function removeEvent($event_id)	{
+		unset(self::$pipes[$event_id]);
+	}
+	
+}
+
 class APIi extends PHPi{
 	public $body = null;
 	

@@ -28,6 +28,10 @@ $server->route('/meep', function($I){
 });
 $server->run();*/
 
+/*
+ * API
+ * 
+*/
 $api = new APIi();
 $api->route->get('*', function($api) {
 	SESSIONi::$data['time'] = microtime(true);
@@ -37,7 +41,21 @@ $api->route->get('*', function($api) {
 $re = $api->route->route($_SERVER['REQUEST_URI'], 'GET', $api);
 if(headers_sent() == false)	{
 	$api->session->__destruct(); //send public data
-	header('Status: '.$re['status']);
-	header('Content-type: application/json');
+	header('Status: '.$re['status']); header('Content-type: application/json');
 }
 echo json_encode($re['body']);
+
+/*
+ * ASYNC
+ * 
+*/
+$async = new ASYNCi();
+$event = ASYNCi::run('curl http://headers.jsontest.com/', function($json) { return json_decode($json, true); } );
+//sleep(3);
+while(true)	{
+	$try = ASYNCi::attempt($event);
+	if($try != false)	{
+		print_r($try);
+		break;
+	}
+}
