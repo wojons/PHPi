@@ -1,4 +1,3 @@
-#!/usr/bin/php
 <?php
 
 class PHPi{
@@ -205,6 +204,163 @@ class PHPi{
 
 }
 
+class APIi extends PHPi{
+	public $body = null;
+	
+	function __construct(){
+		$this->route(); //start the routing
+	}
+	function route()	{
+		$this->route = new ROUTEi();
+	}
+	function session($id){
+		$this->session = new SESSIONi($id);
+	}
+	function database(){}
+	//function cache(){}
+	function config(){}
+	function setBody($body)	{
+		$this->body = $body;
+	}
+}
+
+class ROUTEi extends PHPi{
+	private $routes = array();
+	private $route = array(); //currrent route
+	private $routeList = array(); //list of routes
+	
+	function __construct($config=null){ //if there is a config for it thats cool to
+		
+	}
+	
+	function route($route, $type='GET', &$api){ //route the call to where it needs to go
+		$this->route = $route;
+		$this->routeList[] = $route;
+		
+		foreach($this->routes as $dex=>$dat){
+			if(fnmatch($dex, $route) == true)	{
+				if(isset($dat[$type]) == True)	{
+					if(is_callable($dat[$type]) == true)	{
+						return array('status' => 200, 'body' => (is_string($dat[$type]) == true) ? call_user_func_array($dat[$type], array($route, $body)) : $dat[$type]($api)); 
+					}
+				} else {
+					
+					return array('status' => 404);
+				}
+			} else {
+				return array('status' => 404);
+			}
+		}
+	}
+	
+	//add routing rules
+	function add($types, $rule, $cb){
+		foreach($types as $dat)	{
+			$this->routes[$rule][$dat] = $cb;
+		}
+	}
+	
+	function get($rule, $cb)	{$this->add(array('GET'), $rule, $cb);}
+	function post($rule, $cb) {$this->add(array('POST'), $rule, $cb);}
+	function put($rule, $cb)	{$this->add(array('PUT'), $rule, $cb);}
+	function delete($rule, $cb) {$this->add(array('delete'), $rule, $cb);}
+	
+	// forground helpers
+	function get_route()	{
+		return $this->route;
+	}
+	
+	// background helpers
+	function getLast_routeKey()	{
+		return count($this->routeList)-1;
+	}
+	
+	function getLast_route()	{
+		return $this->routeList[$this->getLast_routeKey()];
+	}
+	
+	function delLast_route()	{
+		unset($this->routeList[$this->getLast_routeKey()]);
+	}
+	
+	function routeUpLevel()	{ //route up one level
+		$this->delLast_route();
+		$this->route = $this->getLast_route();
+	}
+}
+
+class SESSIONi extends PHPi{
+	private static $path = "/dev/shm/SESSIONi/";
+	private static $ext = ".sess";
+	private static $id = "";
+	private static $file = "";
+	private static $open = True;
+	
+	public static $data = array();
+	
+	function __construct($id)	{
+		self::$id = $id;
+	}
+	
+	function create()	{
+		if(file_exists(self::$path) == false)	{ mkdir(self::$path, 0775, true); } //create the folder if its not there
+		while(true)	{
+			self::$id = base_convert(mt_rand()*mt_rand(), 10, 36);
+			if(array_search(self::$id, scandir(self::$path)) === False)	{
+				
+				if(file_put_contents(self::$path.self::$id.self::$ext, getmypid()) == strlen(getmypid())  && file_get_contents(self::$path.self::$id.self::$ext) == getmypid())	{
+					break;
+				}
+			}
+		}
+		file_put_contents(self::$path.self::$id.self::$ext, "{}");
+		setcookie("SESSIONi", self::$id, time()+1209600, "/");
+		return self::$id;
+	}
+	
+	static function read() {
+		if(file_exists(self::$path.self::$id.self::$ext) == false)	{
+			self::create();
+		}
+		$data = json_decode(file_get_contents(self::$path.self::$id.self::$ext), true);
+		
+		if(json_last_error() != JSON_ERROR_NONE)	{
+			self::delete();
+			self::create();
+			return self::read();
+		}
+		setcookie("SESSIONi", self::$id, time()+1209600, "/");
+		self::$data = $data;
+		return $data;
+	}
+	
+	static function write()	{
+		if(is_array(self::$data) == false)	{
+			self::$data = array(self::$data); // make it an arrray
+		}
+		$data = json_encode(self::$data);
+		while(true)	{
+			if(file_put_contents(self::$path.self::$id.self::$ext, $data) == strlen($data))	{
+				break;
+			}
+			sleep(1);
+		}
+		return true;
+	}
+	
+	function delete() {
+		unlink(self::$path.self::$id.self::$ext);
+		self::$id = null;
+	}
+	
+	function __destruct()	{
+		if (self::$open == true)	{
+			self::write();
+			self::$open = false;
+		}
+	}
+}
+
 class PHPi_server extends PHPi{
 	private $input = null;
 	private $conn_count = 0; //connection counter
@@ -275,24 +431,24 @@ class PHPi_server extends PHPi{
 	}
 
 	private function _accapet()	{ //accapet user connections
-		print "\nstart accepet loop: ".time();
-		while(count($this->backlog) < $this->config['server']['max-backlog'] && ($conn = @stream_socket_accept($this->serv_sock, .5)) !== false)	{ //keep accapeting connections until there are no more to accapet or the backlog is full
+		//print "\nstart accepet loop: ".time();
+		while(count($this->backlog) < $this->config['server']['max-backlog'] && ($conn = @stream_socket_accept($this->serv_sock, .01)) !== false)	{ //keep accapeting connections until there are no more to accapet or the backlog is full
 			stream_set_blocking($conn, 0); //set this stream to non blocking
-			print "\nstart accpet: ".time();
+			//print "\nstart accpet: ".time();
 			$conn_data = $this->_read_conn($conn, ++$this->conn_count); //read the connection data
 			if($conn_data != false)	{
-				print "\n finish reading conn: ".time();
+				//print "\n finish reading conn: ".time();
 				$this->_handle_conn($this->conn_count, $conn_data);
-				print "\nend accpet".time();
+				//print "\nend accpet".time();
 			} else {
 				$this->pending_conn[$this->conn_count] = $conn;
 			}
 		}
-		print "\nend accept loop: ".time();
+		//print "\nend accept loop: ".time();
 	}
 
 	private function _incomming()	{
-		print "\nstart incomming loop: ".time();
+		//print "\nstart incomming loop: ".time();
 		foreach($this->in_read_list as $dex => $dat) {
 			$read_return = $this->_read_conn($this->pending_conn[$dex], $dex, 10);
 			if($read_return != false) { //lets process this data
@@ -300,11 +456,11 @@ class PHPi_server extends PHPi{
 				unset($this->in_read_list[$dex]); //remove this from the pending reading list
 			}
 		}
-		print "\nend incomming loop: ".time();
+		//print "\nend incomming loop: ".time();
 	}		
 
 	private function _return(){
-		print "\nstart return loop".time();
+		//print "\nstart return loop".time();
 		foreach($this->process_list as $dex => $dat){ //loop down the list of the connections we know being worked on
 			$payload = ""; //reset it like a boss
 			if(stream_socket_recvfrom($this->node_socks[$dex], $this->config['server']['write_packet_size'], STREAM_PEEK) != ""){//check if there is anything to write
@@ -318,7 +474,7 @@ class PHPi_server extends PHPi{
 				} while (stream_socket_recvfrom($this->node_socks[$dex], $this->config['server']['write_packet_size'], STREAM_PEEK) != ""); //keep trying until we fail at something
 				if($payload != "") { // send data to client
 					stream_socket_sendto($this->conns[$this->nodes[$dex]['conn']], $payload);//lets return this data back to the person that neededs it
-					var_dump($payload);
+					//var_dump($payload);
 					if(@fwrite($this->node_socks[$dex], "\0") == false)	{ //null bit at end close connection 
 						$this->_rm_active($dex);
 						$this->_rm_conn($this->nodes[$dex]['conn']); //close connection to client
@@ -327,18 +483,18 @@ class PHPi_server extends PHPi{
 				}
 			}
 		}
-		print "\nend return loop".time();
+		//print "\nend return loop".time();
 	}
 
 	private function _handle_conn($id, $data){
 		if(($node = $this->_available_nodes(false)) == true && count($this->backlog) == 0){
-			print "\nstart handoff: ".time();
+			//print "\nstart handoff: ".time();
 			$this->_conn_handoff($node, $id, $data);
-			print "\nend handoff: ".time();
+			//print "\nend handoff: ".time();
 		} else { //no server can take the connnections right now so we are going to backlog it
-			print "\nstart backlog entery: ".time();
+			//print "\nstart backlog entery: ".time();
 			$this->_add_backlog($id, $data); //take the current connection number and use that as the id
-			print "\nend backlog write: ".time();
+			//print "\nend backlog write: ".time();
 		}
 	}
 
@@ -366,11 +522,11 @@ class PHPi_server extends PHPi{
 	}
 
 	private function _read_conn($conn, $conn_id=null, $loops=1){
-		print "\nstart reading conn: ".time();
+		//print "\nstart reading conn: ".time();
 		$x=0; $conn_data = "";
 		if(stream_socket_recvfrom($conn, $this->config['server']['read_packet_size'], STREAM_PEEK) != ""){//check if there is anything to read
 			do {
-				print "\nreading conn round {$x}: ".time(); $x++;
+				//print "\nreading conn round {$x}: ".time(); $x++;
 				$new = stream_socket_recvfrom($conn, $this->config['server']['read_packet_size']); $conn_data .= $new; //grab the data waiting
 				//print "\n"; var_dump($new);
 				if(substr($conn_data, -4) == "\r\n\r\n"){ //see if the end of a header request
@@ -532,8 +688,8 @@ class PHPi_node	extends PHPi_server {
 
 	public function run(){
 		while(true && $this->_signal() == false){ //wait for the connection withthe data to be sent /* soon it will be better to leave the connection open forever and just to keep reading 
-			if(($this->fp = @stream_socket_accept($this->socket, .1)) !== false){ //if there is a socket connection
-				print "yo\n";
+			if(($this->fp = @stream_socket_accept($this->socket, 300)) !== false){ //if there is a socket connection
+				//print "yo\n";
 				$this->_receive_request(); //get the request procssed
 				$this->_gc_event(); //clean up the trash
 			}

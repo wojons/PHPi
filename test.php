@@ -1,4 +1,4 @@
-#!/usr/bin/php
+
 <?php
 include 'phpi.php';
 /*I('/home/www/PHPi')->scandir('*', 'file', function($path, $type)	{
@@ -17,10 +17,25 @@ include 'phpi.php';
 	$conn->write($got);
 });*/
 
-$server = new PHPi_server();
+/*
+ * 
+ * SERVER
+ * 
+ * $server = new PHPi_server();
 $server->config_server("config.ini");
 $server->start("0.0.0.0", 8900, function()	{});
 $server->route('/meep', function($I){
 	$I->write("meep");
 });
-$server->run();
+$server->run();*/
+
+$api = new APIi();
+$api->route->get('*', function($api) {
+	print_r(SESSIONi::$data);
+	SESSIONi::$data[] = "true";
+	SESSIONi::$data = array();
+	return $api->route->get_route();
+});
+$api->session($_COOKIE['SESSIONi']);
+SESSIONi::read();
+print_r($api->route->route('hello world u ...', 'GET', $api));
