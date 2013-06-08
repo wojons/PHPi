@@ -319,8 +319,6 @@ class ROUTEi extends PHPi{
 					
 					return array('status' => 404);
 				}
-			} else {
-				return array('status' => 404);
 			}
 		}
 	}
