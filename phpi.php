@@ -281,6 +281,11 @@ class APIi extends PHPi{
 		$this->route(); //start the routing
 		$this->session();
 	}
+	
+	function obj($name, $obj)	{
+		$this->obj[$name] = $obj;
+	}
+	
 	function route()	{
 		$this->route = new ROUTEi();
 	}
