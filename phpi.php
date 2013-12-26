@@ -71,7 +71,7 @@ class PHPi{
 	// start loop codes
 	function each($callback)	{ //same as a normal php foreach loop
 		while(next($this->input))	{
-			$var = each($this->input); 
+			$var = each($this->input);
 			$result[$var[0]] = $callback($var[0], $var[1]);
 		}
 	}
@@ -161,7 +161,7 @@ class PHPi{
 						$x=$keys[$z];
 					}
 				}
-				
+
 			}
 		}
 		return $result;
@@ -207,18 +207,18 @@ class PHPi{
 class ASYNCi extends PHPi{
 	private static $pipes = array();
 	private static $event_path = "";
-	
+
 	function __construct()	{
 		if(file_exists("/dev/shm/ASYNCi/") == False)	{ mkdir("/dev/shm/ASYNCi/", 775, true); }
 		self::$event_path = "/dev/shm/ASYNCi/".getmypid().".";
 	}
-	
+
 	static function run($cmd, $cb) {
 		//$event_file = $this->events_path.count($pipes).'.event';
 		while(true)	{
 			$event_id = base_convert(mt_rand(), 10, 36);
 			if(isset(self::$pipes[$event_id]) == false)	{ //lets use this id
-				if (file_exists(self::$event_path.$event_id.'.event') == true) { unlink(self::$event_path.$event_id.'.event'); } 
+				if (file_exists(self::$event_path.$event_id.'.event') == true) { unlink(self::$event_path.$event_id.'.event'); }
 				//print $cmd.' && touch '.$this->event_path.$event_id.'.event\n'; //exit();
 				self::$pipes[(string)$event_id] = array('handle' => popen($cmd.' && touch '.self::$event_path.$event_id.'.event', 'r'), 'callback' => $cb);
 				break;
@@ -226,7 +226,7 @@ class ASYNCi extends PHPi{
 		}
 		return $event_id;
 	}
-	
+
 	static function attempt($event_id)	{
 		//print $this->event_path.$event_id.'.event\n';
 		if(file_exists(self::$event_path.$event_id.'.event') == true)	{
@@ -234,12 +234,12 @@ class ASYNCi extends PHPi{
 		}
 		return False;
 	}
-	
+
 	static function callback($event_id)	{
 		unlink(self::$event_path.$event_id.'.event');
 		return call_user_func_array(self::$pipes[$event_id]['callback'], array(stream_get_contents(self::$pipes[$event_id]['handle'])));
 	}
-	
+
 	static function loop($iter=1)	{
 		for($x=0; $x<$inter; $x++)	{
 			foreach(glob(self::$event_path.'*') as $dex => $dat)	{
@@ -247,7 +247,7 @@ class ASYNCi extends PHPi{
 			}
 		}
 	}
-	
+
 	static function waitFor($events, $count=0)	{ //wait for some events to finish before continuing
 		$count = ($count > count($events)) ? count($events) : $count; //make sure we are not waiting for me then we have
 		while (true)	{
@@ -263,35 +263,69 @@ class ASYNCi extends PHPi{
 			if($done >= $count) { break; } //done waited for what we needed
 			self::loop(1); //run the loop again
 		}
-		
+
 	}
-	
+
 	function wait()	{}
-	
+
 	function removeEvent($event_id)	{
 		unset(self::$pipes[$event_id]);
 	}
-	
+
 }
 
 class APIi extends PHPi{
 	public $body = null;
-	
+	public $input = null;
+	public $output = null;
+	public $debug = null;
+	private $modes = array();
+
 	function __construct(){
 		$this->route(); //start the routing
 		$this->session();
+		//print_r($_SERVER);
+		if($_SERVER['HTTP_CONTENT_TYPE'] == 'application/json' && $_SERVER['HTTP_CONTENT_LENGTH'] > 0)	{
+			//var_dump(file_get_contents("php://input"));
+			$this->input = json_decode(file_get_contents("php://input"), true);
+			if(json_last_error() != JSON_ERROR_NONE) {
+				die('malformed json');
+			}
+
+		}
+		elseif($_SERVER['REQUEST_METHOD'] != "GET") {
+			print $_SERVER['HTTP_CONTENT_TYPE'];
+		}
 	}
-	
+
+	function setMode($mode, $set=True) {
+		$this->modes[$mode] = $set;
+	}
+
+	function getMode($mode) {
+		return $this->modes[$mode];
+	}
+
+	function debug($msg, $key) {
+		if($this->modes['debug']) {
+			$this->debug[] = array('key' => $key, 'msg' => $msg);
+		}
+	}
+
+	function log() {
+		return True;
+	}
+
 	function obj($name, $obj)	{
 		$this->obj[$name] = $obj;
 	}
-	
+
 	function route()	{
 		$this->route = new ROUTEi();
 	}
 	function session(){
-		$this->session = new SESSIONi($_COOKIE['SESSIONi']);
-		SESSIONi::read();
+		$this->session = new SESSIONi();
+		//SESSIONi::read();
 	}
 	function database(){}
 	//function cache(){}
@@ -305,64 +339,64 @@ class ROUTEi extends PHPi{
 	private $routes = array();
 	private $route = array(); //currrent route
 	private $routeList = array(); //list of routes
-	
+
 	function __construct($config=null){ //if there is a config for it thats cool to
-		
+
 	}
-	
+
 	function route($route, $type='GET', &$api){ //route the call to where it needs to go
 		$this->route = $route;
 		$this->routeList[] = $route;
-		
+
 		foreach($this->routes as $dex=>$dat){
 			if(fnmatch($dex, $route) == true)	{
 				if(isset($dat[$type]) == True)	{
 					if(is_callable($dat[$type]) == true)	{
-						return array('status' => 200, 'body' => (is_string($dat[$type]) == true) ? call_user_func_array($dat[$type], array($route, $body)) : $dat[$type]($api)); 
+						return array('status' => 200, 'body' => (is_string($dat[$type]) == true) ? call_user_func_array($dat[$type], array($route, $body)) : $dat[$type]($api));
 					}
 				} else {
-					
+
 					return array('status' => 404);
 				}
 			}
 		}
 	}
-	
-	
+
+
 	//add routing rules
 	function add($types, $rule, $cb){
 		foreach($types as $dat)	{
 			$this->routes[$rule][$dat] = $cb;
 		}
 	}
-	
+
 	function get($rule, $cb)	{$this->add(array('GET'), $rule, $cb);}
 	function post($rule, $cb) {$this->add(array('POST'), $rule, $cb);}
 	function put($rule, $cb)	{$this->add(array('PUT'), $rule, $cb);}
 	function delete($rule, $cb) {$this->add(array('delete'), $rule, $cb);}
-	
+
 	// forground helpers
 	function get_route()	{
 		return $this->route;
 	}
-	
+
 	function set_status($code)	{
 		$this->status_code = $code;
 	}
-	
+
 	// background helpers
 	function getLast_routeKey()	{
 		return count($this->routeList)-1;
 	}
-	
+
 	function getLast_route()	{
 		return $this->routeList[$this->getLast_routeKey()];
 	}
-	
+
 	function delLast_route()	{
 		unset($this->routeList[$this->getLast_routeKey()]);
 	}
-	
+
 	function routeUpLevel()	{ //route up one level
 		$this->delLast_route();
 		$this->route = $this->getLast_route();
@@ -375,19 +409,24 @@ class SESSIONi extends PHPi{
 	private static $id = "";
 	private static $file = "";
 	private static $open = True;
-	
+
 	public static $data = array();
-	
-	function __construct($id)	{
-		self::$id = $id;
+
+	function __construct()	{
+		//self::$id = $id;
+		self::$data =& $_SESSION['data'];
 	}
-	
-	function create()	{
+
+	static function isLoggedIn() {
+		return (is_string(self::$data['user_id'])) ? true : false;
+	}
+
+	/*function create()	{
 		if(file_exists(self::$path) == false)	{ mkdir(self::$path, 0775, true); } //create the folder if its not there
 		while(true)	{
 			self::$id = base_convert(mt_rand()*mt_rand(), 10, 36);
 			if(array_search(self::$id, scandir(self::$path)) === False)	{
-				
+
 				if(file_put_contents(self::$path.self::$id.self::$ext, getmypid()) == strlen(getmypid())  && file_get_contents(self::$path.self::$id.self::$ext) == getmypid())	{
 					break;
 				}
@@ -397,13 +436,13 @@ class SESSIONi extends PHPi{
 		setcookie("SESSIONi", self::$id, time()+1209600, "/");
 		return self::$id;
 	}
-	
+
 	static function read() {
 		if(file_exists(self::$path.self::$id.self::$ext) == false)	{
 			self::create();
 		}
 		$data = json_decode(file_get_contents(self::$path.self::$id.self::$ext), true);
-		
+
 		if(json_last_error() != JSON_ERROR_NONE)	{
 			self::delete();
 			self::create();
@@ -413,7 +452,7 @@ class SESSIONi extends PHPi{
 		self::$data = $data;
 		return $data;
 	}
-	
+
 	static function write()	{
 		if(is_array(self::$data) == false)	{
 			self::$data = array(self::$data); // make it an arrray
@@ -427,24 +466,24 @@ class SESSIONi extends PHPi{
 		}
 		return true;
 	}
-	
+
 	function delete() {
 		unlink(self::$path.self::$id.self::$ext);
 		self::$id = null;
 	}
-	
+
 	function __destruct()	{
 		if (self::$open == true)	{
 			self::write();
 			self::$open = false;
 		}
-	}
+	}*/
 }
 
 class PHPi_server extends PHPi{
 	private $input = null;
 	private $conn_count = 0; //connection counter
-	
+
 	private $curr_sock = null;
 	private $conns = array(); //an array of all the active connections to the outside world
 	private $nodes = array(); // list of all the nodes we have
@@ -537,7 +576,7 @@ class PHPi_server extends PHPi{
 			}
 		}
 		//print "\nend incomming loop: ".time();
-	}		
+	}
 
 	private function _return(){
 		//print "\nstart return loop".time();
@@ -549,13 +588,13 @@ class PHPi_server extends PHPi{
 					//print var_dump($peak);
 					if($peak != "")	{ //grab the data waiting
 						$payload .= $peak;
-					} 
+					}
 					else { break; } //if thre is no data then break out of the looop
 				} while (stream_socket_recvfrom($this->node_socks[$dex], $this->config['server']['write_packet_size'], STREAM_PEEK) != ""); //keep trying until we fail at something
 				if($payload != "") { // send data to client
 					stream_socket_sendto($this->conns[$this->nodes[$dex]['conn']], $payload);//lets return this data back to the person that neededs it
 					//var_dump($payload);
-					if(@fwrite($this->node_socks[$dex], "\0") == false)	{ //null bit at end close connection 
+					if(@fwrite($this->node_socks[$dex], "\0") == false)	{ //null bit at end close connection
 						$this->_rm_active($dex);
 						$this->_rm_conn($this->nodes[$dex]['conn']); //close connection to client
 						$this->_node_inactive($dex); //close the node
@@ -612,9 +651,9 @@ class PHPi_server extends PHPi{
 				if(substr($conn_data, -4) == "\r\n\r\n"){ //see if the end of a header request
 					$this->_set_conn($conn, $conn_id);
 					return $conn_data;
-				} 
+				}
 				elseif($new == "")	{
-					break; 
+					break;
 				} //handle when we are no longer getting any data
 			} while ($x < $loop); //keep trying until we fail at something
 		}
@@ -653,12 +692,12 @@ class PHPi_server extends PHPi{
 			$pid = pcntl_fork();
 			if ($pid == -1){
 				die('could not fork');
-			} 
+			}
 			elseif ($pid) {
 				$this->_registerNode($pid);
-			} else { 
+			} else {
 				new PHPi_node($this->config['server']['socket_path'], $this->routes);
-				exit(); 
+				exit();
 			}
 		}
 	}
@@ -680,7 +719,7 @@ class PHPi_server extends PHPi{
 		$this->node_socks[$node] = stream_socket_client('unix://'.$this->config['server']['socket_path'].$node.'.sock', $errno, $errstr, 0, STREAM_CLIENT_ASYNC_CONNECT);
 		return true;
 	}
-	
+
 	private function _node_active($node, $conn){
 		$this->nodes[$node] = array('conn' => $conn, 'ts' => microtime());
 	}
@@ -730,9 +769,9 @@ class PHPi_server extends PHPi{
 
 	protected function readUntil($pattern){
 		$recv = "";
-		do { 
+		do {
 			print "ff";
-		     $recv .= socket_read($this->curr_sock, '1400'); 
+		     $recv .= socket_read($this->curr_sock, '1400');
 		} while(fnmatch($pattern, $recv) != true);
 		return $recv;
 	}
@@ -764,10 +803,10 @@ class PHPi_node	extends PHPi_server {
 
 	public function write($str){
 		stream_socket_sendto($this->fp, $str);
-	}	
+	}
 
 	public function run(){
-		while(true && $this->_signal() == false){ //wait for the connection withthe data to be sent /* soon it will be better to leave the connection open forever and just to keep reading 
+		while(true && $this->_signal() == false){ //wait for the connection withthe data to be sent /* soon it will be better to leave the connection open forever and just to keep reading
 			if(($this->fp = @stream_socket_accept($this->socket, 300)) !== false){ //if there is a socket connection
 				//print "yo\n";
 				$this->_receive_request(); //get the request procssed
@@ -818,7 +857,7 @@ class PHPi_node	extends PHPi_server {
 		//did not work so lets put this one here
 		$date = @getdate(time());
 		$this->write("<h1>Hello World</h1><h2>It is currently: {$date['weekday']},  {$date['month']} {$date['mday']}, {$date['year']} @ {$date['hours']}:{$date['minutes']}</h2>");
-		print "\nhello world: ".time(); 
+		print "\nhello world: ".time();
 		return true;
 	}
 
@@ -833,7 +872,7 @@ class PHPi_node	extends PHPi_server {
 				$new = stream_socket_recvfrom($this->fp, 4096); $raw .= $new; //print json_encode(array($raw)); //grab the data waiting
 				if(substr($raw, -4) == "\r\n\r\n")	{ //see if the end of a header request
 					return $this->_process_request($raw);
-				} 
+				}
 				elseif($new == "")	{ break; } //handle when we are no longer getting any data
 			} while (true); //keep trying until we fail at something
 		}
