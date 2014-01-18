@@ -297,6 +297,10 @@ class APIi extends PHPi{
 			print $_SERVER['HTTP_CONTENT_TYPE'];
 		}
 	}
+	
+	function decideType()	{
+		return explode('/',$_SERVER['REQUEST_URI'])[1];
+	}
 
 	function setMode($mode, $set=True) {
 		$this->modes[$mode] = $set;
@@ -342,6 +346,13 @@ class ROUTEi extends PHPi{
 
 	function __construct($config=null){ //if there is a config for it thats cool to
 
+	}
+	
+	function isVaildRoute($name, $path) {
+		if(!isset(configHandler::$public[$path][$name]) || !file_exists(ROOT_PATH.$path."/route/route.".$name.".php")) {
+			return False;
+		}
+		return True;
 	}
 
 	function route($route, $type='GET', &$api){ //route the call to where it needs to go
@@ -419,6 +430,12 @@ class SESSIONi extends PHPi{
 
 	static function isLoggedIn() {
 		return (is_string(self::$data['user_id'])) ? true : false;
+	}
+	
+	static function oneTime() {
+		$tmp = self::$data;
+		session_destroy();
+		self::$data = $tmp;
 	}
 
 	/*function create()	{
