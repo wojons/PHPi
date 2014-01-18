@@ -286,8 +286,12 @@ class APIi extends PHPi{
 		$this->session();
 		//print_r($_SERVER);
 		if($_SERVER['HTTP_CONTENT_TYPE'] == 'application/json' && $_SERVER['HTTP_CONTENT_LENGTH'] > 0)	{
-			//var_dump(file_get_contents("php://input"));
 			$this->input = json_decode(file_get_contents("php://input"), true);
+			
+			if($_SERVER['HTTP_CONTENT_ENCODING'] == 'urlencode') {
+				$this->input = urldecode($this->input);
+			}
+			
 			if(json_last_error() != JSON_ERROR_NONE) {
 				die('malformed json');
 			}
@@ -299,11 +303,29 @@ class APIi extends PHPi{
 	}
 	
 	function decideType()	{
-		return explode('/',$_SERVER['REQUEST_URI'])[1];
+		return basename($_SERVER['SCRIPT_FILENAME'], '.php');
 	}
 
 	function setMode($mode, $set=True) {
 		$this->modes[$mode] = $set;
+	}
+	
+	function setError($code, $text, $status=500) {
+		$this->setHttpStatus($status);
+		$this->output['code'][] = array($code, $text, $status);
+		return True;
+	}
+	
+	function setHttpStatus($status=200, $override=False) {
+		if(is_int($status) && (!isset($this->http_status) || $override != True)) {
+			$this->http_status = $status;
+			return True;
+		}
+		return False;
+	}
+	
+	function getHttpStatus() {
+		return is_int($this->http_status) ? $this->http_status : 200;
 	}
 
 	function getMode($mode) {
@@ -349,7 +371,7 @@ class ROUTEi extends PHPi{
 	}
 	
 	function isVaildRoute($name, $path) {
-		if(!isset(configHandler::$public[$path][$name]) || !file_exists(ROOT_PATH.$path."/route/route.".$name.".php")) {
+		if(!file_exists(ROOT_PATH.$path."/route/route.".$name.".php")) {
 			return False;
 		}
 		return True;
@@ -434,8 +456,13 @@ class SESSIONi extends PHPi{
 	
 	static function oneTime() {
 		$tmp = self::$data;
-		session_destroy();
-		self::$data = $tmp;
+		
+		if(session_destroy()) {
+			unset($_SESSION);
+			self::$data = $tmp;
+			return True;
+		}
+		return False;
 	}
 
 	/*function create()	{
