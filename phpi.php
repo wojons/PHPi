@@ -302,7 +302,7 @@ class APIi extends PHPi{
 		}
 	}
 	
-	function decideType()	{
+	function decideType() {
 		return basename($_SERVER['SCRIPT_FILENAME'], '.php');
 	}
 
