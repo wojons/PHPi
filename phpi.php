@@ -279,6 +279,7 @@ class APIi extends PHPi{
 	public $input = null;
 	public $output = null;
 	public $debug = null;
+	public $http_status = 200;
 	private $modes = array();
 
 	function __construct(){
@@ -288,7 +289,7 @@ class APIi extends PHPi{
 		if($_SERVER['HTTP_CONTENT_TYPE'] == 'application/json' && $_SERVER['HTTP_CONTENT_LENGTH'] > 0)	{
 			$this->input = json_decode(file_get_contents("php://input"), true);
 			
-			if($_SERVER['HTTP_CONTENT_ENCODING'] == 'urlencode') {
+			if(isset($_SERVER['HTTP_CONTENT_ENCODING']) && $_SERVER['HTTP_CONTENT_ENCODING'] == 'urlencode') {
 				$this->input = urldecode($this->input);
 			}
 			
