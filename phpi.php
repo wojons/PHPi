@@ -286,12 +286,15 @@ class APIi extends PHPi{
 		$this->route(); //start the routing
 		$this->session();
 		//print_r($_SERVER);
-		if($_SERVER['HTTP_CONTENT_TYPE'] == 'application/json' && $_SERVER['HTTP_CONTENT_LENGTH'] > 0)	{
-			$this->input = json_decode(file_get_contents("php://input"), true);
+		if(fnmatch('*json*', $_SERVER['HTTP_CONTENT_TYPE']) && $_SERVER['HTTP_CONTENT_LENGTH'] > 0)	{
+			$this->raw_input = file_get_contents("php://input");
+			
 			
 			if(isset($_SERVER['HTTP_CONTENT_ENCODING']) && $_SERVER['HTTP_CONTENT_ENCODING'] == 'urlencode') {
-				$this->input = urldecode($this->input);
+				$this->raw_input = urldecode($this->raw_input);
 			}
+			
+			$this->input = json_decode($this->raw_input, true);
 			
 			if(json_last_error() != JSON_ERROR_NONE) {
 				die('malformed json');
@@ -448,7 +451,13 @@ class SESSIONi extends PHPi{
 
 	function __construct()	{
 		//self::$id = $id;
+		//if(!isset($_SESSION['data'])) { $_SESSION['data'] = array('hello'); }
 		self::$data =& $_SESSION['data'];
+	}
+
+	function __destruct() {
+		//$_SESSION['data'] = self::$data;
+		session_write_close();
 	}
 
 	static function isLoggedIn() {
