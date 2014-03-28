@@ -412,7 +412,7 @@ class ROUTEi extends PHPi{
     function get($rule, $cb)    {$this->add(array('GET'), $rule, $cb);}
     function post($rule, $cb) {$this->add(array('POST'), $rule, $cb);}
     function put($rule, $cb)    {$this->add(array('PUT'), $rule, $cb);}
-    function delete($rule, $cb) {$this->add(array('delete'), $rule, $cb);}
+    function delete($rule, $cb) {$this->add(array('DELETE'), $rule, $cb);}
 
     // forground helpers
     function get_route()    {
