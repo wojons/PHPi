@@ -286,7 +286,7 @@ class APIi extends PHPi{
         $this->route(); //start the routing
         $this->session();
         //print_r($_SERVER);
-        if(fnmatch('*json*', $_SERVER['HTTP_CONTENT_TYPE']) && $_SERVER['HTTP_CONTENT_LENGTH'] > 0) {
+        if(!empty($_SERVER['HTTP_CONTENT_TYPE']) && fnmatch('*json*', $_SERVER['HTTP_CONTENT_TYPE']) && $_SERVER['HTTP_CONTENT_LENGTH'] > 0) {
             $this->raw_input = file_get_contents("php://input");
             
             
