@@ -386,7 +386,7 @@ class ROUTEi extends PHPi{
     function route($route, $type='GET', &$api){ //route the call to where it needs to go
         $this->route = $route;
         $this->routeList[] = $route;
-
+        
         foreach($this->routes as $dex=>$dat){
             if(fnmatch($dex, $route) == true)   {
                 if(isset($dat[$type]) == True)  {
@@ -394,11 +394,14 @@ class ROUTEi extends PHPi{
                         return array('status' => 200, 'body' => (is_string($dat[$type]) == true) ? call_user_func_array($dat[$type], array($route, $body)) : $dat[$type]($api));
                     }
                 } else {
-
-                    return array('status' => 404);
+                    $api->setHttpStatus(405);
+                    return False;
                 }
             }
         }
+        
+        $api->setHttpStatus(404);
+        return False;
     }
 
 
